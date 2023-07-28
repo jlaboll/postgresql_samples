@@ -1,0 +1,818 @@
+-- Create a user so we dont need the default user in the future for admin work
+CREATE USER jlaboll WITH PASSWORD 'foobar' SUPERUSER;
+\echo Login as "jlaboll" and password "foobar" in the future
+
+-- Create a database for this project
+CREATE DATABASE postgres_jlaboll_spike WITH OWNER jlaboll ENCODING 'UTF-8';
+\echo Project database postgres_jlaboll_spike created
+
+SELECT current_database() AS current_db_name, CURRENT_USER AS current_db_user
+\gset
+
+-- Connect to our database
+\echo Switching to database postgres_jlaboll_spike as jlaboll
+\c postgres_jlaboll_spike jlaboll
+
+-- Create the schemas we need in this project
+CREATE SCHEMA IF NOT EXISTS pet;
+CREATE SCHEMA IF NOT EXISTS owner;
+CREATE SCHEMA IF NOT EXISTS pet_owner;
+CREATE SCHEMA IF NOT EXISTS common;
+
+-- Create tables and indexes
+CREATE TABLE IF NOT EXISTS common.setting (
+	id serial CONSTRAINT common_setting_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	key text DEFAULT ''::text NOT NULL,
+	set_boolean boolean DEFAULT FALSE,
+	set_date date DEFAULT NULL::date,
+	set_text text DEFAULT NULL::text,
+	set_integer integer DEFAULT NULL::integer
+);
+
+CREATE UNIQUE INDEX common_setting_uindex 
+	ON common.setting (id);
+
+CREATE UNIQUE INDEX common_setting_key_uindex 
+	ON common.setting (key);
+
+CREATE TABLE IF NOT EXISTS common.country (
+	id serial CONSTRAINT common_country_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	name text DEFAULT ''::text NOT NULL
+);
+
+CREATE UNIQUE INDEX common_country_uindex 
+	ON common.country (id);
+
+CREATE UNIQUE INDEX common_country_name_uindex 
+	ON common.country (name);
+
+CREATE TABLE IF NOT EXISTS common.region (
+	id serial CONSTRAINT common_region_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	name text DEFAULT ''::text NOT NULL,
+	common_country_fk integer CONSTRAINT common_region_common_country_fk REFERENCES common.country ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE UNIQUE INDEX common_region_uindex 
+	ON common.region (id);
+
+CREATE UNIQUE INDEX common_region_name_common_country_fk_uindex 
+	ON common.region (name, common_country_fk);
+
+CREATE TABLE IF NOT EXISTS owner.address (
+	id serial CONSTRAINT owner_address_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	common_region_fk integer CONSTRAINT owner_address_common_region_fk REFERENCES common.region ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+	street_line_1 text DEFAULT ''::text NOT NULL,
+	street_line_2 text DEFAULT ''::text NOT NULL,
+	street_line_3 text DEFAULT ''::text NOT NULL,
+	city text DEFAULT ''::text NOT NULL,
+	postal_code text 
+);
+
+CREATE UNIQUE INDEX owner_address_uindex 
+	ON owner.address (id);
+
+CREATE TABLE IF NOT EXISTS owner.entity (
+	id serial CONSTRAINT owner_entity_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	owner_address_fk integer CONSTRAINT owner_entity_owner_address_fk REFERENCES owner.address ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE UNIQUE INDEX owner_entity_uindex 
+	ON owner.entity (id);
+
+CREATE TABLE IF NOT EXISTS owner.contact (
+	id serial CONSTRAINT owner_contact_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	preferred boolean DEFAULT FALSE,
+	owner_entity_fk integer CONSTRAINT owner_contact_owner_entity_fk REFERENCES owner.entity ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE UNIQUE INDEX owner_contact_uindex 
+	ON owner.contact (id);
+
+CREATE TABLE IF NOT EXISTS owner.email (
+	id serial CONSTRAINT owner_email_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	email_address text DEFAULT ''::text NOT NULL,
+	owner_contact_fk integer CONSTRAINT owner_email_owner_contact_fk REFERENCES owner.contact ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE UNIQUE INDEX owner_email_uindex 
+	ON owner.email (id);
+
+CREATE TABLE IF NOT EXISTS owner.phone (
+	id serial CONSTRAINT owner_phone_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	phone_number text DEFAULT ''::text NOT NULL,
+	owner_contact_fk integer CONSTRAINT owner_email_owner_contact_fk REFERENCES owner.contact ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE UNIQUE INDEX owner_phone_uindex 
+	ON owner.phone (id);
+
+CREATE TABLE IF NOT EXISTS owner.individual (
+	id serial CONSTRAINT owner_individual_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	first_name text DEFAULT ''::text NOT NULL,
+	middle_name text DEFAULT ''::text NOT NULL,
+	last_name text DEFAULT ''::text NOT NULL,
+	owner_entity_fk integer CONSTRAINT owner_individual_owner_entity_fk REFERENCES owner.entity ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE UNIQUE INDEX owner_individual_uindex 
+	ON owner.individual (id);
+
+CREATE TABLE IF NOT EXISTS owner.group (
+	id serial CONSTRAINT owner_group_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	name text DEFAULT ''::text NOT NULL,
+	owner_entity_fk integer CONSTRAINT owner_group_owner_entity_fk REFERENCES owner.entity ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE UNIQUE INDEX owner_group_uindex 
+	ON owner.group (id);
+
+CREATE TABLE IF NOT EXISTS pet.type (
+	id serial CONSTRAINT pet_type_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	name text DEFAULT ''::text NOT NULL
+);
+
+CREATE UNIQUE INDEX pet_type_uindex 
+	ON pet.type (id);
+
+CREATE UNIQUE INDEX pet_type_name_uindex 
+	ON pet.type (name);
+
+CREATE TABLE IF NOT EXISTS pet.breed (
+	id serial CONSTRAINT pet_breed_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	name text DEFAULT ''::text NOT NULL,
+	pet_type_fk integer CONSTRAINT pet_breed_pet_type_fk REFERENCES pet.type ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE UNIQUE INDEX pet_breed_uindex 
+	ON pet.breed (id);
+
+CREATE UNIQUE INDEX pet_breed_name_pet_type_fk_uindex 
+	ON pet.breed (name, pet_type_fk);
+
+CREATE TABLE IF NOT EXISTS pet.entity (
+	id serial CONSTRAINT pet_entity_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	name text DEFAULT ''::text NOT NULL,
+	birthday date DEFAULT NOW()::date NOT NULL,
+	historical boolean DEFAULT FALSE,
+	pet_breed_fk integer CONSTRAINT pet_entity_pet_breed_fk REFERENCES pet.breed ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE UNIQUE INDEX pet_entity_uindex 
+	ON pet.breed (id);
+
+CREATE TABLE IF NOT EXISTS pet_owner.entity_link (
+	id serial CONSTRAINT pet_owner_entity_link_pk PRIMARY KEY,
+	created date DEFAULT NOW()::date NOT NULL,
+	modified date DEFAULT NOW()::date NOT NULL,
+	pet_entity_fk integer CONSTRAINT pet_owner_entity_link_pet_entity_fk REFERENCES pet.entity ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+	owner_entity_fk integer CONSTRAINT pet_owner_entity_link_owner_entity_fk REFERENCES owner.entity ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE UNIQUE INDEX pet_owner_entity_link_uindex 
+	ON pet_owner.entity_link (id);
+
+CREATE UNIQUE INDEX pet_owner_entity_link_fks_uindex 
+	ON pet_owner.entity_link (pet_entity_fk, owner_entity_fk);
+
+-- Create trigger functions and triggers
+CREATE OR REPLACE FUNCTION common.insert_update_set_modified_date()
+RETURNS trigger AS
+$BODY$
+	DECLARE
+	BEGIN
+		IF NEW.modified IS DISTINCT FROM NOW()::date THEN 
+			NEW.modified := NOW()::date;
+		END IF;
+
+		RETURN NEW;
+	END;
+$BODY$
+LANGUAGE 'plpgsql' VOLATILE
+COST 100;
+
+CREATE TRIGGER common_country_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON common.country FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+CREATE TRIGGER common_region_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON common.region FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+
+CREATE TRIGGER owner_address_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON owner.address FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+CREATE TRIGGER owner_entity_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON owner.entity FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+CREATE TRIGGER owner_contact_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON owner.contact FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+CREATE TRIGGER owner_email_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON owner.email FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+CREATE TRIGGER owner_phone_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON owner.phone FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+CREATE TRIGGER owner_individual_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON owner.individual FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+CREATE TRIGGER owner_group_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON owner.group FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+
+CREATE TRIGGER pet_type_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON pet.type FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+CREATE TRIGGER pet_breed_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON pet.breed FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+CREATE TRIGGER pet_entity_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON pet.entity FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+
+CREATE TRIGGER pet_owner_entity_link_common_insert_update_set_modified_date BEFORE INSERT OR UPDATE ON pet_owner.entity_link FOR EACH ROW EXECUTE PROCEDURE common.insert_update_set_modified_date();
+
+CREATE OR REPLACE FUNCTION owner.contact_insert_update_enforce_single_preferred()
+RETURNS trigger AS
+$BODY$
+	DECLARE
+	BEGIN
+		IF NEW.preferred = FALSE THEN 
+			RETURN NEW;
+		END IF;
+
+		IF TG_OP = 'UPDATE' THEN
+			IF NEW.preferred = OLD.preferred THEN 
+				RETURN NEW;
+			END IF;
+		END IF;
+
+		UPDATE owner.contact SET preferred = FALSE WHERE owner_entity_fk = NEW.owner_entity_fk AND id <> NEW.id AND preferred = TRUE;
+
+		RETURN NEW;
+	END;
+$BODY$
+LANGUAGE 'plpgsql' VOLATILE
+COST 100;
+
+CREATE TRIGGER owner_contact_owner_contact_insert_update_enforce_single_primary BEFORE INSERT OR UPDATE ON owner.contact FOR EACH ROW EXECUTE PROCEDURE owner.contact_insert_update_enforce_single_preferred();
+
+-- Insert some mock data
+INSERT INTO common.setting(key, set_text) VALUES ('folding_character', E'\r');
+
+INSERT INTO common.country 	(name 				)
+VALUES 						('United States'	),
+							('Canada'			),
+							('Mexico'			),
+							('United Kingdom'	),
+							('Brazil'			),
+							('France'			),
+							('Germany'			),
+							('Spain'			),
+							('Australia'		);
+
+SELECT id AS country_id FROM common.country WHERE name ILIKE 'United States'
+\gset
+
+INSERT INTO common.region 	(name, 						common_country_fk 	)
+VALUES 						('Alaska', 					:country_id 		),
+							('Alabama', 				:country_id 		),
+							('Arkansas', 				:country_id 		),
+							('Arizona', 				:country_id 		),
+							('California', 				:country_id 		),
+							('Colorado', 				:country_id 		),
+							('Connecticut', 			:country_id 		),
+							('District of Columbia', 	:country_id 		),
+							('Delaware', 				:country_id 		),
+							('Florida', 				:country_id 		),
+							('Georgia', 				:country_id 		),
+							('Hawaii', 					:country_id 		),
+							('Iowa', 					:country_id 		),
+							('Idaho', 					:country_id 		),
+							('Illinois', 				:country_id 		),
+							('Indiana', 				:country_id 		),
+							('Kansas', 					:country_id 		),
+							('Kentucky', 				:country_id 		),
+							('Louisiana', 				:country_id 		),
+							('Massachusetts', 			:country_id 		),
+							('Maryland', 				:country_id 		),
+							('Maine', 					:country_id 		),
+							('Michigan', 				:country_id 		),
+							('Minnesota', 				:country_id 		),
+							('Missouri', 				:country_id 		),
+							('Mississippi', 			:country_id 		),
+							('Montana', 				:country_id 		),
+							('North Carolina', 			:country_id 		),
+							('North Dakota', 			:country_id 		),
+							('Nebraska', 				:country_id 		),
+							('New Hampshire', 			:country_id 		),
+							('New Jersey', 				:country_id 		),
+							('New Mexico', 				:country_id 		),
+							('Nevada', 					:country_id 		),
+							('New York', 				:country_id 		),
+							('Ohio', 					:country_id 		),
+							('Oklahoma', 				:country_id 		),
+							('Oregon', 					:country_id 		),
+							('Pennsylvania', 			:country_id 		),
+							('Puerto Rico', 			:country_id 		),
+							('Rhode Island', 			:country_id 		),
+							('South Carolina', 			:country_id 		),
+							('South Dakota', 			:country_id 		),
+							('Tennessee', 				:country_id 		),
+							('Texas', 					:country_id 		),
+							('Utah', 					:country_id 		),
+							('Virginia', 				:country_id 		),
+							('Vermont', 				:country_id 		),
+							('Washington', 				:country_id 		),
+							('Wisconsin', 				:country_id 		),
+							('West Virginia', 			:country_id 		),
+							('Wyoming', 				:country_id 		);
+
+SELECT id AS country_id FROM common.country WHERE name ILIKE 'Canada'
+\gset
+
+INSERT INTO common.region 	(name, 							common_country_fk 	)
+VALUES 						('Ontario', 					:country_id 		),
+							('Quebec', 						:country_id 		),
+							('Nova Scotia', 				:country_id 		),
+							('New Brunswick', 				:country_id 		),
+							('Manitoba', 					:country_id 		),
+							('British Columbia', 			:country_id 		),
+							('Prince Edward Island', 		:country_id 		),
+							('Saskatchewan', 				:country_id 		),
+							('Alberta', 					:country_id 		),
+							('Newfoundland and Labrador', 	:country_id 		),
+							('Northwest Territories', 		:country_id 		),
+							('Yukon', 						:country_id 		),
+							('Nunavut', 					:country_id 		);
+
+INSERT INTO pet.type 	(name 			)
+VALUES 					('Dog'			),
+						('Cat'			),
+						('Hedgehog'		),
+						('Guinea Pig'	);
+
+SELECT id AS type_id FROM pet.type WHERE name ILIKE 'Dog'
+\gset
+
+INSERT INTO pet.breed 	(name, 				pet_type_fk )
+VALUES 					('Dachshund', 		:type_id 	),
+						('German Shepherd', :type_id 	),
+						('Beagle',	 		:type_id 	),
+						('Shiba Inu', 		:type_id 	);
+
+SELECT id AS type_id FROM pet.type WHERE name ILIKE 'Cat'
+\gset
+
+INSERT INTO pet.breed 	(name, 					pet_type_fk )
+VALUES 					('Siamese', 			:type_id 	),
+						('American Shorthair', 	:type_id 	),
+						('Abyssinian',	 		:type_id 	),
+						('Burmese', 			:type_id 	);
+
+SELECT id AS type_id FROM pet.type WHERE name ILIKE 'Hedgehog'
+\gset
+
+INSERT INTO pet.breed 	(name, 					pet_type_fk )
+VALUES 					('Four-toed', 			:type_id 	),
+						('Long-eared', 			:type_id 	),
+						('European',	 		:type_id 	);
+
+SELECT id AS type_id FROM pet.type WHERE name ILIKE 'Guinea Pig'
+\gset
+
+INSERT INTO pet.breed 	(name, 					pet_type_fk )
+VALUES 					('Abyssinian', 			:type_id 	),
+						('Teddy', 				:type_id 	),
+						('American',	 		:type_id 	),
+						('Texel',	 			:type_id 	),
+						('Rex',	 				:type_id 	),
+						('Satin',	 			:type_id 	);
+
+SELECT cc.id AS country_id, cr.id AS region_id FROM common.country cc JOIN common.region cr ON cr.common_country_fk = cc.id WHERE cc.name ILIKE 'United States' AND cr.name ILIKE 'Illinois'
+\gset 
+
+INSERT INTO owner.address 	(street_line_1, 	street_line_2, 	street_line_3, 	city, 		postal_code, 	common_region_fk 	) 
+VALUES 						('123 Maple Ave.', 	'Apt. 101', 	'', 			'Chicago', 	'60505', 		:region_id 			)
+RETURNING id AS address_id 
+\gset
+
+INSERT INTO owner.entity 	(owner_address_fk  	)
+VALUES 						(:address_id 		)
+RETURNING id AS owner_id 
+\gset 
+
+INSERT INTO owner.contact 	(preferred, 	owner_entity_fk 	)
+VALUES 						(TRUE, 		:owner_id 			),
+							(FALSE, 	:owner_id 			);
+
+INSERT INTO owner.phone (phone_number, 		owner_contact_fk  																			)
+VALUES 					('(123) 787-2323', 	(SELECT id FROM owner.contact WHERE preferred = TRUE AND owner_entity_fk = :owner_id LIMIT 1)	);
+
+INSERT INTO owner.email (email_address, 		owner_contact_fk  																				)
+VALUES 					('sample@email.com', 	(SELECT id FROM owner.contact WHERE preferred = FALSE AND owner_entity_fk = :owner_id LIMIT 1)	);
+
+INSERT INTO owner.individual 	(first_name, 	middle_name, 	last_name, 	owner_entity_fk	)
+VALUES 							('Jasen', 		'Matthew', 		'LaBolle', 	:owner_id		);
+
+INSERT INTO pet.entity 	(name, 			birthday, 				historical,		pet_breed_fk 																																		)
+VALUES 					('Tootsie', 	'2009-10-05'::date, 	TRUE,			(SELECT id FROM pet.breed WHERE name ILIKE 'Beagle' LIMIT 1)																						),
+						('Doritio', 	'2017-01-10'::date, 	TRUE,			(SELECT id FROM pet.breed WHERE name ILIKE 'Four-toed' LIMIT 1)																						),
+						('Penelope', 	'2020-08-12'::date, 	FALSE,			(SELECT id FROM pet.breed WHERE name ILIKE 'Four-toed' LIMIT 1)																						),
+						('S''mores', 	'2021-06-01'::date, 	FALSE,			(SELECT pb.id FROM pet.type pt JOIN pet.breed pb ON pt.id = pb.pet_type_fk WHERE pt.name ILIKE 'Guinea Pig' AND pb.name ILIKE 'American' LIMIT 1)	),
+						('Cookie', 		'2021-06-03'::date, 	FALSE,			(SELECT pb.id FROM pet.type pt JOIN pet.breed pb ON pt.id = pb.pet_type_fk WHERE pt.name ILIKE 'Guinea Pig' AND pb.name ILIKE 'Satin' LIMIT 1)		),
+						('Butterscotch','2021-10-15'::date, 	FALSE,			(SELECT pb.id FROM pet.type pt JOIN pet.breed pb ON pt.id = pb.pet_type_fk WHERE pt.name ILIKE 'Guinea Pig' AND pb.name ILIKE 'American' LIMIT 1)	),
+						('Reggie', 		'2021-11-20'::date, 	FALSE,			(SELECT pb.id FROM pet.type pt JOIN pet.breed pb ON pt.id = pb.pet_type_fk WHERE pt.name ILIKE 'Guinea Pig' AND pb.name ILIKE 'Abyssinian' LIMIT 1)	),
+						('Vanilla', 	'2023-02-14'::date, 	FALSE,			(SELECT pb.id FROM pet.type pt JOIN pet.breed pb ON pt.id = pb.pet_type_fk WHERE pt.name ILIKE 'Guinea Pig' AND pb.name ILIKE 'American' LIMIT 1)	),
+						('Boba', 		'2023-02-14'::date, 	FALSE,			(SELECT pb.id FROM pet.type pt JOIN pet.breed pb ON pt.id = pb.pet_type_fk WHERE pt.name ILIKE 'Guinea Pig' AND pb.name ILIKE 'American' LIMIT 1)	),
+						('Queso', 		'2023-04-11'::date, 	FALSE,			(SELECT pb.id FROM pet.type pt JOIN pet.breed pb ON pt.id = pb.pet_type_fk WHERE pt.name ILIKE 'Guinea Pig' AND pb.name ILIKE 'Abyssinian' LIMIT 1)	);
+
+DO $$
+	DECLARE 
+		pet_entity_id integer;
+		owner_entity_id integer;
+	BEGIN
+		SELECT owner_entity_fk FROM owner.individual WHERE first_name ILIKE 'Jasen' AND last_name ILIKE 'LaBolle' INTO owner_entity_id;
+
+		IF NOT FOUND THEN 
+			RETURN;
+		END IF;
+
+		INSERT INTO pet_owner.entity_link 	(
+			pet_entity_fk, 
+			owner_entity_fk
+		) SELECT 
+			id, 
+			owner_entity_id
+		FROM pet.entity;
+	END;
+$$;
+
+-- Create some helpful functions for displaying information
+CREATE OR REPLACE FUNCTION common.get_folding_character()
+RETURNS text AS
+$BODY$
+	SELECT COALESCE(
+		(
+			SELECT 
+				NULLIF(set_text, '')
+			FROM common.setting
+			WHERE
+				key ILIKE 'folding_character'
+		),
+		E'\r'
+	);
+$BODY$
+LANGUAGE 'sql' IMMUTABLE
+COST 100;
+
+CREATE OR REPLACE FUNCTION pet.pet_description(pet_entity pet.entity)
+RETURNS text AS 
+$BODY$
+	SELECT 
+		pet_entity.name || ' - ' || pt.name || ', ' || pb.name
+	FROM pet.breed pb
+	JOIN pet.type pt
+		ON pt.id = pb.pet_type_fk
+	WHERE
+		pb.id = pet_entity.pet_breed_fk;
+$BODY$
+LANGUAGE 'sql' IMMUTABLE
+COST 100;
+
+CREATE OR REPLACE FUNCTION pet.pet_description(pet_entity pet.entity)
+RETURNS text AS 
+$BODY$
+	SELECT 
+		pet_entity.name || ' - ' || pt.name || ', ' || pb.name
+	FROM pet.breed pb
+	JOIN pet.type pt
+		ON pt.id = pb.pet_type_fk
+	WHERE
+		pb.id = pet_entity.pet_breed_fk;
+$BODY$
+LANGUAGE 'sql' IMMUTABLE
+COST 100;
+
+CREATE OR REPLACE FUNCTION owner.address_pretty(owner_address owner.address, full_name text DEFAULT ''::text, folding boolean DEFAULT FALSE)
+RETURNS text AS 
+$BODY$
+	DECLARE 
+		folding_char text := '';
+		region_name text;
+		country_name text;
+	BEGIN
+		IF folding THEN
+			folding_char := common.get_folding_character();
+		END IF;
+
+		SELECT 
+			cr.name,
+			cc.name
+		FROM common.region cr
+		JOIN common.country cc
+			ON cc.id = cr.common_country_fk
+		WHERE 
+			cr.id = owner_address.common_region_fk
+		INTO region_name, country_name;
+
+		RETURN CASE WHEN NULLIF(full_name, '') IS NOT NULL THEN 
+				full_name || ' ' || folding_char
+			ELSE 
+				''
+			END ||
+			owner_address.street_line_1 || ' ' || folding_char ||
+			CASE WHEN NULLIF(owner_address.street_line_2, '') IS NOT NULL THEN
+				owner_address.street_line_2 || ' ' || folding_char
+			ELSE 
+				''
+			END ||
+			CASE WHEN NULLIF(owner_address.street_line_3, '') IS NOT NULL THEN
+				owner_address.street_line_3 || ' ' || folding_char
+			ELSE 
+				''
+			END ||
+			owner_address.city || ' ' ||
+			region_name || ', ' || 
+			owner_address.postal_code || ' ' || folding_char ||
+			country_name;
+	END;
+$BODY$
+LANGUAGE 'plpgsql' VOLATILE
+COST 100;
+
+CREATE OR REPLACE FUNCTION owner.owner_description(owner_entity_id integer)
+RETURNS text AS 
+$BODY$
+	SELECT 
+		COALESCE(
+			CASE 
+				WHEN oi.id IS NOT NULL THEN 
+					oi.first_name || ' ' || 
+					CASE 
+						WHEN NULLIF(oi.middle_name, '') IS NULL THEN 
+							''
+						ELSE 
+							substring(oi.middle_name, 1, 1) || '. '
+					END || oi.last_name 
+				WHEN og.id IS NOT NULL THEN 
+					og.name
+				ELSE 
+					NULL::text
+			END,
+			'Unknown'
+		)
+	FROM owner.entity oe
+	LEFT OUTER JOIN owner.individual oi
+		ON oe.id = oi.owner_entity_fk
+	LEFT OUTER JOIN owner.group og
+		ON oe.id = og.owner_entity_fk
+	WHERE oe.id = owner_entity_id;
+$BODY$
+LANGUAGE 'sql' IMMUTABLE
+COST 100;
+
+CREATE OR REPLACE FUNCTION owner.contact_information(owner_entity_id integer, folding boolean DEFAULT FALSE)
+RETURNS text AS 
+$BODY$
+	DECLARE 
+		folding_char text := '';
+		owner_contact_row record;
+		contact_info text;
+		return_contact_info text := '';
+	BEGIN
+		IF folding THEN 
+			folding_char := common.get_folding_character();
+		END IF;
+
+		FOR owner_contact_row IN 
+			WITH owner_emails AS (
+				SELECT 
+					oc.preferred,
+					TRUE AS is_email,
+					oce.email_address AS contact
+				FROM owner.contact oc
+				JOIN owner.email oce 
+					ON oc.id = oce.owner_contact_fk
+				WHERE 
+					oc.owner_entity_fk = owner_entity_id AND
+					NULLIF(oce.email_address, '') IS NOT NULL
+			), owner_phones AS (
+				SELECT 
+					oc.preferred,
+					FALSE AS is_email,
+					ocp.phone_number AS contact
+				FROM owner.contact oc
+				JOIN owner.phone ocp 
+					ON oc.id = ocp.owner_contact_fk
+				WHERE 
+					oc.owner_entity_fk = owner_entity_id AND
+					NULLIF(ocp.phone_number, '') IS NOT NULL
+			), owner_contact_union AS (
+				SELECT 
+					* 
+				FROM owner_emails
+				UNION SELECT 
+					* 
+				FROM owner_phones
+			) SELECT 
+				* 
+			FROM owner_contact_union
+			ORDER BY 
+				preferred = FALSE
+		LOOP
+			IF owner_contact_row.is_email THEN 
+				contact_info := 'E-Mail Address: ' || owner_contact_row.contact;
+			ELSE 
+				contact_info := 'Phone Number: ' || owner_contact_row.contact;
+			END IF;
+
+			IF owner_contact_row.preferred THEN 
+				return_contact_info := 'Preferred ' || contact_info || '; ' || 
+					CASE 
+						WHEN NULLIF(return_contact_info, '') IS NOT NULL THEN 
+							folding_char 
+						ELSE 
+							'' 
+					END || return_contact_info;
+			ELSE 
+				return_contact_info := return_contact_info || folding_char || contact_info || '; ';
+			END IF;
+		END LOOP;
+
+		RETURN return_contact_info;
+	END;
+$BODY$
+LANGUAGE 'plpgsql' VOLATILE
+COST 100;
+
+
+-- Create some views to simplify viewing data
+CREATE OR REPLACE VIEW pet.pet_detail AS 
+	SELECT
+		pe.id,
+		pe.name,
+		pb.name AS breed,
+		pt.name AS type,
+		pe.birthday,
+		pe.historical
+	FROM pet.entity pe
+	JOIN pet.breed pb
+		ON pb.id = pe.pet_breed_fk
+	JOIN pet.type pt
+		ON pt.id = pb.pet_type_fk;
+
+
+CREATE OR REPLACE VIEW owner.owner_detail AS
+	SELECT
+		oe.id,
+		og.name AS group_name,
+		oi.first_name,
+		oi.middle_name,
+		oi.last_name,
+		oa.street_line_1,
+		oa.street_line_2,
+		oa.street_line_3,
+		oa.city,
+		cr.name AS region_name,
+		oa.postal_code,
+		cc.name AS country_name,
+		array_agg(oce.email_address) AS email_addresses,
+		array_agg(ocp.phone_number) AS phone_numbers
+	FROM owner.entity oe
+	LEFT OUTER JOIN owner.individual oi
+		ON oe.id = oi.owner_entity_fk
+	LEFT OUTER JOIN owner.group og
+		ON oe.id = og.owner_entity_fk
+	JOIN owner.address oa
+		ON oa.id = oe.owner_address_fk
+	JOIN common.region cr
+		ON cr.id = oa.common_region_fk
+	JOIN common.country cc
+		ON cc.id = cr.common_country_fk
+	LEFT OUTER JOIN owner.contact oc 
+		ON oc.owner_entity_fk = oe.id
+	LEFT OUTER JOIN owner.email oce
+		ON oce.owner_contact_fk = oc.id
+	LEFT OUTER JOIN owner.phone ocp
+		ON ocp.owner_contact_fk = oc.id
+	GROUP BY 
+		oe.id,
+		oi.first_name,
+		oi.middle_name,
+		oi.last_name,
+		og.name,
+		oa.street_line_1,
+		oa.street_line_2,
+		oa.street_line_3,
+		oa.city,
+		oa.postal_code,
+		cr.name,
+		cc.name;
+
+CREATE OR REPLACE VIEW pet_owner.pet_owner_detail AS 
+	SELECT
+		poel.id, 
+		ood.group_name,
+		ood.first_name,
+		ood.middle_name,
+		ood.last_name,
+		ood.street_line_1,
+		ood.street_line_2,
+		ood.street_line_3,
+		ood.city,
+		ood.region_name,
+		ood.postal_code,
+		ood.country_name,
+		ood.email_addresses,
+		ood.phone_numbers,
+		ppd.name, 
+		ppd.breed,
+		ppd.type,
+		ppd.birthday,
+		ppd.historical
+	FROM pet_owner.entity_link poel
+	JOIN owner.owner_detail ood
+		ON ood.id = poel.owner_entity_fk
+	JOIN pet.pet_detail ppd
+		ON ppd.id = poel.pet_entity_fk;
+
+\echo
+\echo Setup finished, selecting some data
+\echo
+
+SELECT
+	*
+FROM common.country
+LIMIT 5;
+
+SELECT
+	* 
+FROM pet.entity
+LIMIT 5;
+
+SELECT
+	pet.pet_description(pet.entity.*) AS pet_description
+FROM pet.entity;
+
+SELECT
+	owner.owner_description(owner.entity.id) AS owner_description,
+	owner.address_pretty(owner.address.*, owner.owner_description(owner.entity.id), TRUE) AS owner_address_block
+FROM owner.entity
+JOIN owner.address
+	ON owner.entity.owner_address_fk = owner.address.id;
+
+SELECT
+	* 
+FROM pet_owner.pet_owner_detail;
+
+\echo
+\echo Exporting some data to CSV in current directory as "sample_export.csv"
+\echo
+
+SET client_min_messages TO 'WARNING';
+\set QUIET on
+\o sample_export.csv
+
+COPY (
+	WITH owner_info AS (
+		SELECT 
+			oe.id AS owner_entity_id,
+			owner.owner_description(oe.id) AS owner_description,
+			owner.address_pretty(oa.*, owner.owner_description(oe.id), FALSE) AS owner_full_address,
+			owner.contact_information(oe.id) AS owner_contact_information,
+			pet.pet_description(pe.*) AS pet
+		FROM owner.entity oe 
+		JOIN owner.address oa
+			ON oe.owner_address_fk = oa.id
+		JOIN pet_owner.entity_link poel
+			ON oe.id = poel.owner_entity_fk
+		JOIN pet.entity pe
+			ON poel.pet_entity_fk = pe.id
+	) SELECT 
+		oi.owner_entity_id,
+		oi.owner_description,
+		oi.owner_full_address,
+		oi.owner_contact_information,
+		string_agg(oi.pet, ' | ') AS pets
+	FROM owner_info oi 
+	GROUP BY 
+		oi.owner_entity_id,
+		oi.owner_description,
+		oi.owner_full_address,
+		oi.owner_contact_information
+) TO STDOUT WITH CSV HEADER;
+
+\o
+\set QUIET off
+RESET client_min_messages;
+
+\echo Reconnecting to original database with original role
+\c :current_db_name :current_db_user
+
+\echo Cleaning up sample database
+DROP DATABASE IF EXISTS postgres_jlaboll_spike;
+
+\echo Cleaning up sample role
+DROP USER IF EXISTS jlaboll;
