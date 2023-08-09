@@ -1,5 +1,4 @@
-SET client_min_messages TO 'WARNING';
-\set QUIET on
+\ir ../common/quiet_on.sql
 \o sample_export.csv
 
 COPY (
@@ -32,5 +31,4 @@ COPY (
 ) TO STDOUT WITH CSV HEADER;
 
 \o
-\set QUIET off
-RESET client_min_messages;
+\ir ../common/quiet_off.sql
